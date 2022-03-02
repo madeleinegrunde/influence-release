@@ -165,7 +165,7 @@ def test_retraining(model, test_idx, iter_to_load, force_refresh=False,
         
 
     np.savez(
-        'output/%s_loss_diffs' % model.model_name, 
+        'output/%s/%s_loss_diffs' % (model.train_dir, model.model_name), 
         actual_loss_diffs=actual_loss_diffs, 
         predicted_loss_diffs=predicted_loss_diffs)
 

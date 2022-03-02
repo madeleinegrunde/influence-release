@@ -85,6 +85,9 @@ class GenericNeuralNet(object):
         self.batch_size = kwargs.pop('batch_size')
         self.data_sets = kwargs.pop('data_sets')
         self.train_dir = kwargs.pop('train_dir', 'output')
+
+        print('Generic Neural net training dictionary', self.train_dir)
+
         log_dir = kwargs.pop('log_dir', 'log')
         self.model_name = kwargs.pop('model_name')
         self.num_classes = kwargs.pop('num_classes')
