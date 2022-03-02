@@ -118,7 +118,8 @@ def test_retraining(model, test_idx, iter_to_load, force_refresh=False,
     
     # Save just the predicted loss
     np.savez(
-        '%s/%s_predicted_loss' % (model.train_dir, model.model_name),
+        '%s/%s_predicted_loss-%s' % (model.train_dir, model.model_name, test_idx),
+        test_idx = [test_idx],
         indices_to_remove=indices_to_remove,
         predicted_loss_diffs=predicted_loss_diffs)
 

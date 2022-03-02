@@ -78,7 +78,7 @@ def main(args):
     
     iter_to_load = num_steps - 1
 
-    test_idx = 6558
+    test_idx = args.test_idx
 
     actual_loss_diffs, predicted_loss_diffs, indices_to_remove = experiments.test_retraining(
         model, 
@@ -107,6 +107,8 @@ if __name__ == '__main__':
                                             help='True if refresh from checkpoint, false ow')
     parser.add_argument('--iter_to_load', type=int, default=499999,
                                             help='Which iteration to refresh from')
+    parser.add_argument('--test_idx', type=int, default=6558,
+                                                       help='Which idx to test')
     args = parser.parse_args()
     print("Saving outputs to %s", args.output_dir)
     main(args)
