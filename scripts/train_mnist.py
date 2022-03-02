@@ -7,6 +7,7 @@ import numpy as np
 import IPython
 import argparse
 import tensorflow as tf
+import os
 
 # added in order o be able to access influence
 import sys
@@ -56,11 +57,25 @@ def main(args):
         log_dir='log',
         model_name='mnist_small_all_cnn_c')
 
+
+    # save output dir if doesnt exist
+    if not os.path.exists(model.train_dir):
+        print('making directory to', model.train_dir)
+        os.makedirs(model.train_dir)
+
+
     num_steps = 500000
-    model.train(
-        num_steps=num_steps, 
-        iter_to_switch_to_batch=10000000,
-        iter_to_switch_to_sgd=10000000)
+    
+    if args.refresh:
+        print("Refreshing from iteration %s" % args.iter_to_load)
+        model.load_checkpoint(args.iter_to_load, do_checks=False)
+    else:
+        print("Training from scratch")
+        model.train(
+            num_steps=num_steps, 
+            iter_to_switch_to_batch=10000000,
+            iter_to_switch_to_sgd=10000000)
+    
     iter_to_load = num_steps - 1
 
     test_idx = 6558
@@ -88,6 +103,10 @@ if __name__ == '__main__':
                                     help='folder in output')
     parser.add_argument('--num_test', type=int, default=20,
                                             help='number test set examples to get influence for')
+    parser.add_argument('--refresh', type=bool, default=False,
+                                            help='True if refresh from checkpoint, false ow')
+    parser.add_argument('--iter_to_load', type=int, default=499999,
+                                            help='Which iteration to refresh from')
     args = parser.parse_args()
     print("Saving outputs to %s", args.output_dir)
     main(args)

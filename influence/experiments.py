@@ -115,6 +115,13 @@ def test_retraining(model, test_idx, iter_to_load, force_refresh=False,
         predicted_loss_diffs = predicted_loss_diffs[indices_to_remove]
     else:
         raise ValueError, 'remove_type not well specified'
+    
+    # Save just the predicted loss
+    np.savez(
+        '%s/%s_predicted_loss' % (model.train_dir, model.model_name),
+        indices_to_remove=indices_to_remove,
+        predicted_loss_diffs=predicted_loss_diffs)
+
     actual_loss_diffs = np.zeros([num_to_remove])
 
     # Sanity check
@@ -165,7 +172,7 @@ def test_retraining(model, test_idx, iter_to_load, force_refresh=False,
         
 
     np.savez(
-        'output/%s/%s_loss_diffs' % (model.train_dir, model.model_name), 
+        '%s/%s_loss_diffs' % (model.train_dir, model.model_name), 
         actual_loss_diffs=actual_loss_diffs, 
         predicted_loss_diffs=predicted_loss_diffs)
 
