@@ -79,6 +79,10 @@ def main(args):
     
         iter_to_load = num_steps - 1
 
+    print('test-x', model.data_sets.test.x[args.test_idx])
+    logits = model.inference(model.data_sets.test.x[args.test_idx])
+    preds = model.predictions(logits)
+    print('predicted  is', preds)
     test_idx = args.test_idx
 
     actual_loss_diffs, predicted_loss_diffs, indices_to_remove = experiments.test_retraining(
