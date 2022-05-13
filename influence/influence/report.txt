@@ -1,0 +1,60 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 1 files
+Detected 2 issues that require attention
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File: genericNeuralNet_1.py
+--------------------------------------------------------------------------------
+genericNeuralNet_1.py:33:10: WARNING: tf.get_variable requires manual check. tf.get_variable returns ResourceVariables by default in 2.0, which have well-defined semantics and are stricter about shapes. You can disable this behavior by passing use_resource=False, or by calling tf.compat.v1.disable_resource_variables().
+genericNeuralNet_1.py:386:37: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+================================================================================
+Detailed log follows:
+
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'genericNeuralNet_1.py'
+ outputting to 'genericNeuralNet.py'
+--------------------------------------------------------------------------------
+
+33:10: WARNING: tf.get_variable requires manual check. tf.get_variable returns ResourceVariables by default in 2.0, which have well-defined semantics and are stricter about shapes. You can disable this behavior by passing use_resource=False, or by calling tf.compat.v1.disable_resource_variables().
+33:10: INFO: Renamed 'tf.get_variable' to 'tf.compat.v1.get_variable'
+57:20: INFO: tf.truncated_normal_initializer requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+57:20: INFO: Renamed 'tf.truncated_normal_initializer' to 'tf.compat.v1.truncated_normal_initializer'
+63:6: INFO: Renamed 'tf.add_to_collection' to 'tf.compat.v1.add_to_collection'
+84:8: INFO: Renamed 'tf.set_random_seed' to 'tf.compat.v1.set_random_seed'
+108:17: INFO: Renamed 'tf.ConfigProto' to 'tf.compat.v1.ConfigProto'
+109:20: INFO: Renamed 'tf.Session' to 'tf.compat.v1.Session'
+119:42: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+132:41: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+133:39: INFO: Renamed 'tf.assign' to 'tf.compat.v1.assign'
+141:21: INFO: Renamed 'tf.train.Saver' to 'tf.compat.v1.train.Saver'
+145:34: INFO: Added keywords to args of function 'tf.gradients'
+146:35: INFO: Added keywords to args of function 'tf.gradients'
+147:30: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+148:30: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+152:38: INFO: Added keywords to args of function 'tf.gradients'
+156:13: INFO: Added keywords to args of function 'tf.reduce_sum'
+158:43: INFO: Added keywords to args of function 'tf.gradients'
+165:15: INFO: Renamed 'tf.global_variables_initializer' to 'tf.compat.v1.global_variables_initializer'
+171:44: INFO: Added keywords to args of function 'tf.gradients'
+386:37: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+403:20: INFO: Renamed 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+412:20: INFO: Renamed 'tf.train.GradientDescentOptimizer' to 'tf.compat.v1.train.GradientDescentOptimizer'
+427:18: INFO: Added keywords to args of function 'tf.nn.in_top_k'
+428:15: INFO: Added keywords to args of function 'tf.reduce_sum'
+428:59: INFO: Added keywords to args of function 'tf.shape'
+435:26: INFO: Added keywords to args of function 'tf.reduce_sum'
+435:26: INFO: Renamed keyword argument for tf.reduce_sum from reduction_indices to axis
+438:22: INFO: Added keywords to args of function 'tf.reduce_mean'
+439:8: INFO: Renamed 'tf.add_to_collection' to 'tf.compat.v1.add_to_collection'
+441:30: INFO: Renamed 'tf.get_collection' to 'tf.compat.v1.get_collection'
+454:34: INFO: Added keywords to args of function 'tf.boolean_mask'
+456:33: INFO: Added keywords to args of function 'tf.reduce_logsumexp'
+456:33: INFO: Renamed keyword argument for tf.reduce_logsumexp from reduction_indices to axis
+456:90: INFO: Added keywords to args of function 'tf.reduce_logsumexp'
+456:90: INFO: Renamed keyword argument for tf.reduce_logsumexp from reduction_indices to axis
+457:27: INFO: Added keywords to args of function 'tf.reduce_mean'
+--------------------------------------------------------------------------------
+
