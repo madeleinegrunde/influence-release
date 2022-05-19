@@ -20,8 +20,10 @@ import time
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import array_ops
-from keras import backend as K
-from tensorflow.contrib.learn.python.learn.datasets import base
+#from keras import backend as K
+import tensorflow.python.keras.backend as K
+#from tensorflow.contrib.learn.python.learn.datasets import base
+
 
 from influence.hessians import hessian_vector_product
 from influence.dataset import DataSet
@@ -29,11 +31,12 @@ from influence.dataset import DataSet
 
 def variable(name, shape, initializer):
     dtype = tf.float32
-    var = tf.get_variable(
+    var = tf.compat.v1.get_variable(
         name, 
         shape, 
         initializer=initializer, 
-        dtype=dtype)
+        dtype=dtype,
+        use_resource=False)
     return var
 
 def variable_with_weight_decay(name, shape, stddev, wd):
@@ -53,13 +56,15 @@ def variable_with_weight_decay(name, shape, stddev, wd):
     var = variable(
         name, 
         shape, 
-        initializer=tf.truncated_normal_initializer(
+        initializer=tf.compat.v1.truncated_normal_initializer(
             stddev=stddev, 
-            dtype=dtype))
+            dtype=dtype,
+            #use_resource=False
+            ))
  
     if wd is not None:
       weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
-      tf.add_to_collection('losses', weight_decay)
+      tf.compat.v1.add_to_collection('losses', weight_decay)
 
     return var
 
@@ -80,14 +85,17 @@ class GenericNeuralNet(object):
 
     def __init__(self, **kwargs):
         np.random.seed(0)
-        tf.set_random_seed(0)
+        tf.compat.v1.set_random_seed(0)
         
         self.batch_size = kwargs.pop('batch_size')
+        # changed this to manually make .train etc
         self.data_sets = kwargs.pop('data_sets')
+        self.data_sets.train = kwargs.pop('data_sets_train')
+        self.data_sets.validation = kwargs.pop('data_sets_val')
+        self.data_sets.test = kwargs.pop('data_sets_test')
+        # print("making datasets!!!", type(data_sets))
         self.train_dir = kwargs.pop('train_dir', 'output')
-
-        print('Generic Neural net training dictionary', self.train_dir)
-
+        self.results_dir = kwargs.pop('results_dir')
         log_dir = kwargs.pop('log_dir', 'log')
         self.model_name = kwargs.pop('model_name')
         self.num_classes = kwargs.pop('num_classes')
@@ -105,10 +113,12 @@ class GenericNeuralNet(object):
         
         if not os.path.exists(self.train_dir):
             os.makedirs(self.train_dir)
+        if not os.path.exists(self.results_dir):
+            os.makedirs(self.results_dir)
 
         # Initialize session
-        config = tf.ConfigProto()        
-        self.sess = tf.Session(config=config)
+        config = tf.compat.v1.ConfigProto()        
+        self.sess = tf.compat.v1.Session(config=config)
         K.set_session(self.sess)
                 
         # Setup input
@@ -118,7 +128,7 @@ class GenericNeuralNet(object):
         
         # Setup inference and training
         if self.keep_probs is not None:
-            self.keep_probs_placeholder = tf.placeholder(tf.float32, shape=(2))
+            self.keep_probs_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(2))
             self.logits = self.inference(self.input_placeholder, self.keep_probs_placeholder)
         elif hasattr(self, 'inference_needs_labels'):            
             self.logits = self.inference(self.input_placeholder, self.labels_placeholder)
@@ -131,8 +141,8 @@ class GenericNeuralNet(object):
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         self.learning_rate = tf.Variable(self.initial_learning_rate, name='learning_rate', trainable=False)
-        self.learning_rate_placeholder = tf.placeholder(tf.float32)
-        self.update_learning_rate_op = tf.assign(self.learning_rate, self.learning_rate_placeholder)
+        self.learning_rate_placeholder = tf.compat.v1.placeholder(tf.float32)
+        self.update_learning_rate_op = tf.compat.v1.assign(self.learning_rate, self.learning_rate_placeholder)
         
         self.train_op = self.get_train_op(self.total_loss, self.global_step, self.learning_rate)
         self.train_sgd_op = self.get_train_sgd_op(self.total_loss, self.global_step, self.learning_rate)
@@ -140,37 +150,40 @@ class GenericNeuralNet(object):
         self.preds = self.predictions(self.logits)
 
         # Setup misc
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
         # Setup gradients and Hessians
         self.params = self.get_all_params()
-        self.grad_total_loss_op = tf.gradients(self.total_loss, self.params)
-        self.grad_loss_no_reg_op = tf.gradients(self.loss_no_reg, self.params)
-        self.v_placeholder = [tf.placeholder(tf.float32, shape=a.get_shape()) for a in self.params]
-        self.u_placeholder = [tf.placeholder(tf.float32, shape=a.get_shape()) for a in self.params]
+        self.grad_total_loss_op = tf.compat.v1.gradients(ys=self.total_loss, xs=self.params)
+        self.grad_loss_no_reg_op = tf.compat.v1.gradients(ys=self.loss_no_reg, xs=self.params)
+        self.v_placeholder = [tf.compat.v1.placeholder(tf.float32, shape=a.get_shape()) for a in self.params]
+        self.u_placeholder = [tf.compat.v1.placeholder(tf.float32, shape=a.get_shape()) for a in self.params]
 
         self.hessian_vector = hessian_vector_product(self.total_loss, self.params, self.v_placeholder)
 
-        self.grad_loss_wrt_input_op = tf.gradients(self.total_loss, self.input_placeholder)        
+        self.grad_loss_wrt_input_op = tf.gradients(ys=self.total_loss, xs=self.input_placeholder)        
 
         # Because tf.gradients auto accumulates, we probably don't need the add_n (or even reduce_sum)        
         self.influence_op = tf.add_n(
-            [tf.reduce_sum(tf.multiply(a, array_ops.stop_gradient(b))) for a, b in zip(self.grad_total_loss_op, self.v_placeholder)])
+            [tf.reduce_sum(input_tensor=tf.multiply(a, array_ops.stop_gradient(b))) for a, b in zip(self.grad_total_loss_op, self.v_placeholder)])
 
-        self.grad_influence_wrt_input_op = tf.gradients(self.influence_op, self.input_placeholder)
+        self.grad_influence_wrt_input_op = tf.gradients(ys=self.influence_op, xs=self.input_placeholder)
     
         self.checkpoint_file = os.path.join(self.train_dir, "%s-checkpoint" % self.model_name)
 
         self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)
         self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)
 
-        init = tf.global_variables_initializer()        
+        init = tf.compat.v1.global_variables_initializer()        
+        #print("self.sess/run init!")
         self.sess.run(init)
+        #print("DONE")
+        #print("Type init: %s, Type gradlossnoregop: %s" % (type(init), type(self.grad_loss_no_reg_op)))
 
         self.vec_to_list = self.get_vec_to_list_fn()
         self.adversarial_loss, self.indiv_adversarial_loss = self.adversarial_loss(self.logits, self.labels_placeholder)
         if self.adversarial_loss is not None:
-            self.grad_adversarial_loss_op = tf.gradients(self.adversarial_loss, self.params)
+            self.grad_adversarial_loss_op = tf.gradients(ys=self.adversarial_loss, xs=self.params)
         
 
     def get_vec_to_list_fn(self):
@@ -193,7 +206,7 @@ class GenericNeuralNet(object):
 
 
     def reset_datasets(self):
-        for data_set in self.data_sets:
+        for data_set in [self.data_sets.train, self.data_sets.validation, self.data_sets.test]:
             if data_set is not None:
                 data_set.reset_batch()
 
@@ -385,13 +398,14 @@ class GenericNeuralNet(object):
 
             # Save a checkpoint and evaluate the model periodically.
             if (step + 1) % 100000 == 0 or (step + 1) == num_steps:
-                if save_checkpoints: self.saver.save(sess, self.checkpoint_file, global_step=step)
-                if verbose: self.print_model_eval()
+                if save_checkpoints: self.saver.save(sess, self.checkpoint_file, global_step=step)#, save_format='h5')
+                print("Would have been printing model eval here but skipping to see")
+                #if verbose: self.print_model_eval()
 
 
     def load_checkpoint(self, iter_to_load, do_checks=True):
         checkpoint_to_load = "%s-%s" % (self.checkpoint_file, iter_to_load) 
-        self.saver.restore(self.sess, checkpoint_to_load)
+        self.saver.restore(self.sess, checkpoint_to_load)#, save_format='h5')
 
         if do_checks:
             print('Model %s loaded. Sanity checks ---' % checkpoint_to_load)
@@ -402,7 +416,7 @@ class GenericNeuralNet(object):
         """
         Return train_op
         """
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
         train_op = optimizer.minimize(total_loss, global_step=global_step)
         return train_op
 
@@ -411,7 +425,7 @@ class GenericNeuralNet(object):
         """
         Return train_sgd_op
         """
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        optimizer = tf.compat.v1.train.GradientDescentOptimizer(learning_rate)
         train_op = optimizer.minimize(total_loss, global_step=global_step)
         return train_op
 
@@ -426,21 +440,21 @@ class GenericNeuralNet(object):
           A scalar int32 tensor with the number of examples (out of batch_size)
           that were predicted correctly.
         """        
-        correct = tf.nn.in_top_k(logits, labels, 1)
-        return tf.reduce_sum(tf.cast(correct, tf.int32)) / tf.shape(labels)[0]
+        correct = tf.nn.in_top_k(predictions=logits, targets=labels, k=1)
+        return tf.reduce_sum(input_tensor=tf.cast(correct, tf.int32)) / tf.shape(input=labels)[0]
 
 
     def loss(self, logits, labels):
 
         labels = tf.one_hot(labels, depth=self.num_classes)
         # correct_prob = tf.reduce_sum(tf.multiply(labels, tf.nn.softmax(logits)), reduction_indices=1)
-        cross_entropy = - tf.reduce_sum(tf.multiply(labels, tf.nn.log_softmax(logits)), reduction_indices=1)
+        cross_entropy = - tf.reduce_sum(input_tensor=tf.multiply(labels, tf.nn.log_softmax(logits)), axis=1)
 
         indiv_loss_no_reg = cross_entropy
-        loss_no_reg = tf.reduce_mean(cross_entropy, name='xentropy_mean')
-        tf.add_to_collection('losses', loss_no_reg)
+        loss_no_reg = tf.reduce_mean(input_tensor=cross_entropy, name='xentropy_mean')
+        tf.compat.v1.add_to_collection('losses', loss_no_reg)
 
-        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+        total_loss = tf.add_n(tf.compat.v1.get_collection('losses'), name='total_loss')
 
         return total_loss, loss_no_reg, indiv_loss_no_reg
 
@@ -453,10 +467,10 @@ class GenericNeuralNet(object):
         wrong_labels = (labels - 1) * -1 # Flips 0s and 1s
         wrong_labels_bool = tf.reshape(tf.cast(wrong_labels, tf.bool), [-1, self.num_classes])
 
-        wrong_logits = tf.reshape(tf.boolean_mask(logits, wrong_labels_bool), [-1, self.num_classes - 1])
+        wrong_logits = tf.reshape(tf.boolean_mask(tensor=logits, mask=wrong_labels_bool), [-1, self.num_classes - 1])
         
-        indiv_adversarial_loss = tf.reduce_logsumexp(wrong_logits, reduction_indices=1) - tf.reduce_logsumexp(logits, reduction_indices=1)
-        adversarial_loss = tf.reduce_mean(indiv_adversarial_loss)
+        indiv_adversarial_loss = tf.reduce_logsumexp(input_tensor=wrong_logits, axis=1) - tf.reduce_logsumexp(input_tensor=logits, axis=1)
+        adversarial_loss = tf.reduce_mean(input_tensor=indiv_adversarial_loss)
         
         return adversarial_loss, indiv_adversarial_loss #, indiv_wrong_prob
 
@@ -611,41 +625,51 @@ class GenericNeuralNet(object):
 
 
     def get_test_grad_loss_no_reg_val(self, test_indices, batch_size=100, loss_type='normal_loss'):
-
+        #print("A")
         if loss_type == 'normal_loss':
+            #print('normal')
             op = self.grad_loss_no_reg_op
         elif loss_type == 'adversarial_loss':
+            #print('adversarial')
             op = self.grad_adversarial_loss_op
         else:
-            raise ValueError, 'Loss must be specified'
-
+            raise ValueError('Loss must be specified')
+        #print("B")
         if test_indices is not None:
+            #print('C')
             num_iter = int(np.ceil(len(test_indices) / batch_size))
 
             test_grad_loss_no_reg_val = None
+            #print("C1")
             for i in range(num_iter):
+
                 start = i * batch_size
                 end = int(min((i+1) * batch_size, len(test_indices)))
-
+                #print('C2')
                 test_feed_dict = self.fill_feed_dict_with_some_ex(self.data_sets.test, test_indices[start:end])
-
+                #print("C3")
+                # hanged to init to see if that helps!
+                #init = tf.compat.v1.global_variables_initializer()
+                #print("made init")
+                #print("Type of op: ", type(op), type(op[0]), len(op))
                 temp = self.sess.run(op, feed_dict=test_feed_dict)
-
+                #print("C4")
                 if test_grad_loss_no_reg_val is None:
                     test_grad_loss_no_reg_val = [a * (end-start) for a in temp]
                 else:
                     test_grad_loss_no_reg_val = [a + b * (end-start) for (a, b) in zip(test_grad_loss_no_reg_val, temp)]
-
+                #print("C5")
             test_grad_loss_no_reg_val = [a/len(test_indices) for a in test_grad_loss_no_reg_val]
 
         else:
+            #print('D')
             test_grad_loss_no_reg_val = self.minibatch_mean_eval([op], self.data_sets.test)[0]
-        
+        #print('E')
         return test_grad_loss_no_reg_val
 
 
     def get_influence_on_test_loss(self, test_indices, train_idx, 
-        approx_type='cg', approx_params=None, force_refresh=True, test_description=None,
+        approx_type='cg', approx_params=None, force_refresh=False, test_description=None,
         loss_type='normal_loss',
         X=None, Y=None):
         # If train_idx is None then use X and Y (phantom points)
@@ -653,13 +677,14 @@ class GenericNeuralNet(object):
         # because mini-batching permutes dataset order
 
         if train_idx is None: 
-            if (X is None) or (Y is None): raise ValueError, 'X and Y must be specified if using phantom points.'
-            if X.shape[0] != len(Y): raise ValueError, 'X and Y must have the same length.'
+            if (X is None) or (Y is None): raise ValueError('X and Y must be specified if using phantom points.')
+            if X.shape[0] != len(Y): raise ValueError('X and Y must have the same length.')
         else:
-            if (X is not None) or (Y is not None): raise ValueError, 'X and Y cannot be specified if train_idx is specified.'
-
+            if (X is not None) or (Y is not None): raise ValueError('X and Y cannot be specified if train_idx is specified.')
+        
+        #print("Just before getting test grad")
         test_grad_loss_no_reg_val = self.get_test_grad_loss_no_reg_val(test_indices, loss_type=loss_type)
-
+        #print("Just after getting test grad")
         print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
 
         start_time = time.time()
@@ -667,15 +692,15 @@ class GenericNeuralNet(object):
         if test_description is None:
             test_description = test_indices
 
-        approx_filename = os.path.join(self.train_dir, '%s-%s-%s-test-%s.npz' % (self.model_name, approx_type, loss_type, test_description))
+        approx_filename = os.path.join(self.results_dir, '%s-%s-%s-test-%s.npz' % (self.model_name, approx_type, loss_type, test_description))
         if os.path.exists(approx_filename) and force_refresh == False:
-            inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
+            inverse_hvp = list(np.load(approx_filename, allow_pickle=True)['inverse_hvp'])
             print('Loaded inverse HVP from %s' % approx_filename)
         else:
             inverse_hvp = self.get_inverse_hvp(
                 test_grad_loss_no_reg_val,
                 approx_type,
-                approx_params)
+                approx_params, verbose=False)
             np.savez(approx_filename, inverse_hvp=inverse_hvp)
             print('Saved inverse HVP to %s' % approx_filename)
 
@@ -772,7 +797,7 @@ class GenericNeuralNet(object):
         if test_description is None:
             test_description = test_indices
 
-        approx_filename = os.path.join(self.train_dir, '%s-%s-%s-test-%s.npz' % (self.model_name, approx_type, loss_type, test_description))
+        approx_filename = os.path.join(self.results_dir, '%s-%s-%s-test-%s.npz' % (self.model_name, approx_type, loss_type, test_description))
         
         if os.path.exists(approx_filename) and force_refresh == False:
             inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
@@ -813,14 +838,14 @@ class GenericNeuralNet(object):
     def update_train_x(self, new_train_x):
         assert np.all(new_train_x.shape == self.data_sets.train.x.shape)
         new_train = DataSet(new_train_x, np.copy(self.data_sets.train.labels))
-        self.data_sets = base.Datasets(train=new_train, validation=self.data_sets.validation, test=self.data_sets.test)
+        self.data_sets = tf.data.Dataset(train=new_train, validation=self.data_sets.validation, test=self.data_sets.test)
         self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)                
         self.reset_datasets()
 
 
     def update_train_x_y(self, new_train_x, new_train_y):
         new_train = DataSet(new_train_x, new_train_y)
-        self.data_sets = base.Datasets(train=new_train, validation=self.data_sets.validation, test=self.data_sets.test)
+        self.data_sets = tf.data.Dataset(train=new_train, validation=self.data_sets.validation, test=self.data_sets.test)
         self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)                
         self.num_train_examples = len(new_train_y)
         self.reset_datasets()        
@@ -828,7 +853,7 @@ class GenericNeuralNet(object):
 
     def update_test_x_y(self, new_test_x, new_test_y):
         new_test = DataSet(new_test_x, new_test_y)
-        self.data_sets = base.Datasets(train=self.data_sets.train, validation=self.data_sets.validation, test=new_test)
+        self.data_sets = tf.data.Dataset(train=self.data_sets.train, validation=self.data_sets.validation, test=new_test)
         self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)                
         self.num_test_examples = len(new_test_y)
         self.reset_datasets()        
