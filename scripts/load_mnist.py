@@ -2,10 +2,12 @@
 
 import gzip
 import numpy as np
-
-from tensorflow.contrib.learn.python.learn.datasets import base
+import tensorflow as tf
+# added this to see
+tf.compat.v1.disable_eager_execution()
+#from tensorflow.contrib.learn.python.learn.datasets import base
 from influence.dataset import DataSet
-
+import os
 
 def _read32(bytestream):
   dt = np.dtype(np.uint32).newbyteorder('>')
@@ -61,6 +63,21 @@ def extract_labels(f, one_hot=False, num_classes=10):
     return labels
 
 
+# adapted from: https://github.com/leriomaggio/deep-learning-keras-tensorflow/blob/master/2.%20Deep%20Learning%20Frameworks/mnist_data.py
+def maybe_download(filename, work_directory, SOURCE_URL):
+    """Download the data from Yann's website, unless it's already here."""
+    if not tf.io.gfile.exists(work_directory):
+        tf.io.gfile.MakeDirs(work_directory)
+    filepath = os.path.join(work_directory, filename)
+    if not tf.io.gfile.exists(filepath):
+        filepath, _ = urllib.request.urlretrieve(SOURCE_URL + filename, filepath)
+        with tf.io.gfile.GFile(filepath) as f:
+            size = f.size()
+        print('Successfully downloaded', filename, size, 'bytes.')
+    return filepath
+
+
+
 def load_mnist(train_dir, validation_size=5000):
 
   SOURCE_URL = 'http://yann.lecun.com/exdb/mnist/'
@@ -70,22 +87,22 @@ def load_mnist(train_dir, validation_size=5000):
   TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
   TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
 
-  local_file = base.maybe_download(TRAIN_IMAGES, train_dir,
+  local_file = maybe_download(TRAIN_IMAGES, train_dir,
                                    SOURCE_URL + TRAIN_IMAGES)
   with open(local_file, 'rb') as f:
     train_images = extract_images(f)
 
-  local_file = base.maybe_download(TRAIN_LABELS, train_dir,
+  local_file = maybe_download(TRAIN_LABELS, train_dir,
                                    SOURCE_URL + TRAIN_LABELS)
   with open(local_file, 'rb') as f:
     train_labels = extract_labels(f)
 
-  local_file = base.maybe_download(TEST_IMAGES, train_dir,
+  local_file = maybe_download(TEST_IMAGES, train_dir,
                                    SOURCE_URL + TEST_IMAGES)
   with open(local_file, 'rb') as f:
     test_images = extract_images(f)
 
-  local_file = base.maybe_download(TEST_LABELS, train_dir,
+  local_file = maybe_download(TEST_LABELS, train_dir,
                                    SOURCE_URL + TEST_LABELS)
   with open(local_file, 'rb') as f:
     test_labels = extract_labels(f)
@@ -108,20 +125,29 @@ def load_mnist(train_dir, validation_size=5000):
   validation = DataSet(validation_images, validation_labels)
   test = DataSet(test_images, test_labels)
 
-  return base.Datasets(train=train, validation=validation, test=test)
+  #print("Train test val type: ", type(train), type(validation), type(test))
+  d = tf.data.Dataset
+  d.train = train
+  d.validation = validation
+  d.test = test
+  return d, train, validation, test#tf.data.Dataset#()#train=train, validation=validation, test=test, element_spec=tf.int32)
+  
 
-def load_small_mnist(train_dir, validation_size=5000, random_seed=0):
+def load_small_mnist(train_dir, divisor, validation_size=5000, random_seed=0):
   np.random.seed(random_seed)
-  data_sets = load_mnist(train_dir, validation_size)
+  data_sets, train, validation, test = load_mnist(train_dir, validation_size)
 
-  train_images = data_sets.train.x
-  train_labels = data_sets.train.labels
-  perm = np.arange(len(train_labels))
-  np.random.shuffle(perm)
-  num_to_keep = int(len(train_labels) / 10)
-  perm = perm[:num_to_keep]
-  train_images = train_images[perm, :]
-  train_labels = train_labels[perm]
+  train_images = train.x
+  train_labels = train.labels
+  
+  if True: # do this if want a subset
+    perm = np.arange(len(train_labels))
+    np.random.shuffle(perm)
+    num_to_keep = int(len(train_labels) / divisor)
+    print("Only keeping %s of the training set" % num_to_keep)
+    perm = perm[:num_to_keep]
+    train_images = train_images[perm, :]
+    train_labels = train_labels[perm]
 
   validation_images = data_sets.validation.x
   validation_labels = data_sets.validation.labels
@@ -141,10 +167,16 @@ def load_small_mnist(train_dir, validation_size=5000, random_seed=0):
   # test_images = test_images[perm, :]
   # test_labels = test_labels[perm]
 
+  #print("Len train labels is ", len(train_labels)
   train = DataSet(train_images, train_labels)
   validation = DataSet(validation_images, validation_labels)
   test = DataSet(test_images, test_labels)
 
-  return base.Datasets(train=train, validation=validation, test=test)
+  d = tf.data.Dataset
+  d.train = train
+  d.validation = validation
+  d.test = test
+
+  return d, train, validation, test #tf.data.Dataset(train=train, validation=validation, test=test)
 
   
