@@ -21,9 +21,9 @@ def makePath(path):
         os.makedirs(path)
 
 def main(args, test_idx):
-    if args.train_subset != 0:
+    if args.train_subset != 0 and not args.predict_all_train:
         print("loading small subset!")
-        data_sets, train, val, test = load_small_mnist('data', args.train_subset)    
+        data_sets, train, val, test = load_small_mnist('data', args.train_subset, random_seed=args.random_seed)    
     else:
         print("loading entire dataset")
         data_sets, train, val, test = load_mnist('data')
@@ -100,14 +100,14 @@ def main(args, test_idx):
     #test_idx = args.test_idx
 
     # Retrain or just get influences!
-    if args.test_retraining:
+    if args.test_retraining > 0:
         for test_idx in range(args.start_idx, args.end_idx):
             print("Testing index %s: " % test_idx)
             actual_loss_diffs, predicted_loss_diffs, indices_to_remove = experiments.test_retraining(
                 model, 
                 test_idx=test_idx, 
                 iter_to_load=iter_to_load, 
-                num_to_remove=args.num_test,
+                num_to_remove=args.test_retraining,
                 num_steps=30000, 
                 remove_type='maxinf',
                 force_refresh=args.force_hvp_refresh)
@@ -128,7 +128,8 @@ def main(args, test_idx):
                 #num_to_remove=args.num_test,
                 num_steps=30000, 
                 remove_type='maxinf',
-                force_refresh=args.force_hvp_refresh) # make true if want to generate inverse hvp each time
+                force_refresh=args.force_hvp_refresh,
+                predict_all_train=args.predict_all_train) # make true if want to generate inverse hvp each time
 
 
 
@@ -146,14 +147,18 @@ if __name__ == '__main__':
                                                        help='Which idx to start test')
     parser.add_argument('--end_idx', type=int, default=1,
                                                     help='Which idx to end test')
-    parser.add_argument('--test_retraining', type=bool, default=False,
-                                                       help='To check closeness to retraining')
+    parser.add_argument('--test_retraining', type=int, default=0,
+                                                       help='How many examples to retrain for')
     parser.add_argument('--train_subset', type=int, default=0,
                                                     help='Zero if use all train, otherwise divisor')
     parser.add_argument('--force_hvp_refresh', type=bool, default=False,
                                             help='True if refresh hvp')
+    parser.add_argument('--random_seed', type=int, default=0,
+                                            help='Random seed for loading dataset')
+    parser.add_argument('--predict_all_train', type=bool, default=False,
+                                                        help='takes an hvp and tests all training on it')
     args = parser.parse_args()
-    print("Saving outputs to %s", args.dir)
+    print("Saving outputs to %s" % args.dir)
     
 
     # deleted 3 because already have that

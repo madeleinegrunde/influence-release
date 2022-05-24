@@ -481,7 +481,7 @@ class GenericNeuralNet(object):
         return feed_dict
 
 
-    def get_inverse_hvp(self, v, approx_type='cg', approx_params=None, verbose=True):
+    def get_inverse_hvp(self, v, approx_type='cg', approx_params=None, verbose=False):
         assert approx_type in ['cg', 'lissa']
         if approx_type == 'lissa':
             return self.get_inverse_hvp_lissa(v, **approx_params)
@@ -671,7 +671,7 @@ class GenericNeuralNet(object):
     def get_influence_on_test_loss(self, test_indices, train_idx, 
         approx_type='cg', approx_params=None, force_refresh=False, test_description=None,
         loss_type='normal_loss',
-        X=None, Y=None):
+        X=None, Y=None, predict_all_train=False):
         # If train_idx is None then use X and Y (phantom points)
         # Need to make sure test_idx stays consistent between models
         # because mini-batching permutes dataset order
@@ -697,6 +697,9 @@ class GenericNeuralNet(object):
             inverse_hvp = list(np.load(approx_filename, allow_pickle=True)['inverse_hvp'])
             print('Loaded inverse HVP from %s' % approx_filename)
         else:
+            if predict_all_train:
+                print("ERROR: attempting to predict all train with no made hvp")
+                return
             inverse_hvp = self.get_inverse_hvp(
                 test_grad_loss_no_reg_val,
                 approx_type,
@@ -777,7 +780,7 @@ class GenericNeuralNet(object):
 
 
     def get_grad_of_influence_wrt_input(self, train_indices, test_indices, 
-        approx_type='cg', approx_params=None, force_refresh=True, verbose=True, test_description=None,
+        approx_type='cg', approx_params=None, force_refresh=True, verbose=False, test_description=None,
         loss_type='normal_loss'):
         """
         If the loss goes up when you remove a point, then it was a helpful point.

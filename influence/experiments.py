@@ -177,7 +177,7 @@ def test_retraining(model, test_idx, iter_to_load, force_refresh=False,
 
 def get_train_influences(model, test_idx, iter_to_load, force_refresh=False, 
                     num_steps=1000, random_seed=17,
-                    remove_type='random'):
+                    remove_type='random', predict_all_train=False):
 
     np.random.seed(random_seed)
 
@@ -189,13 +189,19 @@ def get_train_influences(model, test_idx, iter_to_load, force_refresh=False,
     predicted_loss_diffs = model.get_influence_on_test_loss(
             [test_idx], 
             np.arange(len(model.data_sets.train.labels)),
-            force_refresh=force_refresh)
+            force_refresh=force_refresh,
+            predict_all_train=predict_all_train)
     
     #print("After getting influences")
     
-    np.save(
-        '%s/predicted_loss-%s' % (model.results_dir, test_idx),
-        predicted_loss_diffs)
+    if predict_all_train:
+        np.save(
+                '%s/all_predicted_loss-%s' % (model.results_dir, test_idx),
+                predicted_loss_diffs)
+    else:
+        np.save(
+            '%s/predicted_loss-%s' % (model.results_dir, test_idx),
+            predicted_loss_diffs)
     
     # potentiallyuseful for what want to save
     # y_test = model.data_sets.test.labels[test_idx]

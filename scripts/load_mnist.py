@@ -133,7 +133,8 @@ def load_mnist(train_dir, validation_size=5000):
   return d, train, validation, test#tf.data.Dataset#()#train=train, validation=validation, test=test, element_spec=tf.int32)
   
 
-def load_small_mnist(train_dir, divisor, validation_size=5000, random_seed=0):
+def load_small_mnist(train_dir, divisor, validation_size=5000, random_seed=0, shuffle=False):
+  print('Loading with random seed %s' % random_seed)
   np.random.seed(random_seed)
   data_sets, train, validation, test = load_mnist(train_dir, validation_size)
 
@@ -142,7 +143,8 @@ def load_small_mnist(train_dir, divisor, validation_size=5000, random_seed=0):
   
   if True: # do this if want a subset
     perm = np.arange(len(train_labels))
-    np.random.shuffle(perm)
+    if shuffle:
+      np.random.shuffle(perm)
     num_to_keep = int(len(train_labels) / divisor)
     print("Only keeping %s of the training set" % num_to_keep)
     perm = perm[:num_to_keep]
