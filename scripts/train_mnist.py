@@ -20,14 +20,13 @@ def makePath(path):
         print('making directory to', path)
         os.makedirs(path)
 
-def main(args, test_idx):
+def main(args):
     if args.train_subset != 0 and not args.predict_all_train:
         print("loading small subset!")
         data_sets, train, val, test = load_small_mnist('data', args.train_subset, random_seed=args.random_seed)    
     else:
         print("loading entire dataset")
         data_sets, train, val, test = load_mnist('data')
-    #print("TRAIN LEN: ", len(train))
 
     num_classes = 10
     input_side = 28
@@ -97,40 +96,18 @@ def main(args, test_idx):
     
         iter_to_load = num_steps - 1
 
-    #test_idx = args.test_idx
-
-    # Retrain or just get influences!
-    if args.test_retraining > 0:
-        for test_idx in range(args.start_idx, args.end_idx):
-            print("Testing index %s: " % test_idx)
-            actual_loss_diffs, predicted_loss_diffs, indices_to_remove = experiments.test_retraining(
-                model, 
-                test_idx=test_idx, 
-                iter_to_load=iter_to_load, 
-                num_to_remove=args.test_retraining,
-                num_steps=30000, 
-                remove_type='maxinf',
-                force_refresh=args.force_hvp_refresh)
-
-            np.savez(
-                'output/mnist/%s/mnist_small_all_cnn_c_iter-500k_retraining-100.npz' % args.dir, 
-                actual_loss_diffs=actual_loss_diffs, 
-                predicted_loss_diffs=predicted_loss_diffs, 
-                indices_to_remove=indices_to_remove
-                )
-    else:
-        for test_idx in range(args.start_idx, args.end_idx):
-            print("Testing index %s: " % test_idx)
-            experiments.get_train_influences(
-                model, 
-                test_idx=test_idx, 
-                iter_to_load=iter_to_load, 
-                #num_to_remove=args.num_test,
-                num_steps=30000, 
-                remove_type='maxinf',
-                force_refresh=args.force_hvp_refresh,
-                predict_all_train=args.predict_all_train) # make true if want to generate inverse hvp each time
-
+    # Get training influences for each test instance
+    for test_idx in range(args.start_idx, args.end_idx):
+        print("Testing index %s: " % test_idx)
+        experiments.get_train_influences(
+            model, 
+            test_idx=test_idx, 
+            iter_to_load=iter_to_load, 
+            num_to_remove=args.test_retraining,
+            num_steps=30000, 
+            remove_type='consistent',
+            force_refresh=args.force_hvp_refresh,
+            predict_all_train=args.predict_all_train)
 
 
 if __name__ == '__main__':
@@ -160,13 +137,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print("Saving outputs to %s" % args.dir)
     
-
-    # deleted 3 because already have that
-    idxs = [1]# [10, 13, 25, 28, 55, 69, 71, 101, 126, 2, 5, 14, 29, 31, 37, 39, 40, 46, 57, 1, 35, 38, 43, 47, 72, 77, 82, 106, 119, 18, 30, 32, 44, 51, 63, 68, 76, 87, 90, 4, 6, 19, 24, 27, 33, 42, 48, 49, 56, 8, 15, 23, 45, 52, 53, 59, 102, 120, 127, 11, 21, 22, 50, 54, 66, 81, 88, 91, 98, 0, 17, 26, 34, 36, 41, 60, 64, 70, 75, 61, 84, 110, 128, 134, 146, 177, 179, 181, 184, 7, 9, 12, 16, 20, 58, 62, 73, 78, 92]
-
-    for idx in idxs:
-        print()
-        #print("STARTING IDX %s" % idx)
-        #args.output_dir = "%s-%s" % (args.output_dir, idx)
-        #makePath(args.dir)
-        main(args, idx)
+    main(args)

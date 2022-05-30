@@ -143,7 +143,7 @@ def load_small_mnist(train_dir, divisor, validation_size=5000, random_seed=0, sh
   
   if True: # do this if want a subset
     perm = np.arange(len(train_labels))
-    if shuffle:
+    if True:
       np.random.shuffle(perm)
     num_to_keep = int(len(train_labels) / divisor)
     print("Only keeping %s of the training set" % num_to_keep)
